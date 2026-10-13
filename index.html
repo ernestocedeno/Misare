@@ -21,6 +21,7 @@
     .fullscreen:hover { background: #1b2a42; }
     .screen .fullscreen { position: absolute; z-index: 2; top: 12px; right: 14px; }
     .music-widget { position: absolute; z-index: 6; top: 10px; right: 76px; display: flex; gap: 8px; align-items: center; padding: 5px; border: 1px solid #526781; border-radius: 8px; background: #091322ef; box-shadow: 0 4px 18px #0009; }
+    .screen.playing .music-widget { top: 58px; right: 14px; }
     .music-widget button, .music-widget select { border: 1px solid #526781; border-radius: 5px; padding: 5px 8px; background: #14243a; color: #eaf5ff; font: inherit; font-size: .82rem; cursor: pointer; }
     .music-widget select { max-width: 180px; }
     .screen:fullscreen { width: 100vw; height: 100vh; border: 0; border-radius: 0; }
@@ -123,7 +124,7 @@
     }
     function localMenu() {
       readControlModes();
-      gameMode = 'local'; updateControlHints(); isHost = false; localIdx = 0; gameStarted = true; titleMenu.hidden = true; divider.hidden = false; resetMatch(); startMusic();
+      gameMode = 'local'; updateControlHints(); isHost = false; localIdx = 0; gameStarted = true; arena.classList.add('playing'); titleMenu.hidden = true; divider.hidden = false; resetMatch(); startMusic();
     }
     document.querySelector('#localStart').addEventListener('click', localMenu);
     document.querySelector('#hostStart').addEventListener('click', () => { readControlModes(); isHost = true; localIdx = 0; startMusic(); showPanel('host'); });
@@ -197,7 +198,7 @@
     function bindDataChannel(dataChannel, host) {
       channel = dataChannel; isHost = host; localIdx = host ? 0 : 1;
       channel.onopen = () => {
-        gameMode = 'online'; gameStarted = true; titleMenu.hidden = true; divider.hidden = true; resetMatch();
+        gameMode = 'online'; gameStarted = true; arena.classList.add('playing'); titleMenu.hidden = true; divider.hidden = true; resetMatch();
         updateControlHints();
         const status = document.querySelector(host ? '#hostStatus' : '#joinStatus'); if (status) status.textContent = 'Connected. Loading arena…';
       };
