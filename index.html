@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Misare</title>
+  <style>
+    :root { color-scheme: dark; font-family: "Segoe UI", system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #050914; color: #eaf5ff; }
+    main { width: min(1400px, 100vw); padding: 20px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 0 2px 12px; }
+    h1 { margin: 0; font-size: clamp(1.3rem, 4vw, 2rem); letter-spacing: .12em; text-transform: uppercase; }
+    .hint { color: #96a9c5; font-size: .86rem; text-align: right; }
+    .screen { position: relative; overflow: hidden; border: 1px solid #334c70; border-radius: 12px; background: #030711; box-shadow: 0 18px 60px #0009; }
+    canvas { display: block; width: 100%; aspect-ratio: 16 / 7; }
+    .divider { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: linear-gradient(transparent, #9bb9e8 15%, #9bb9e8 85%, transparent); box-shadow: 0 0 12px #91b9ff; pointer-events: none; }
+    .bottom { display: flex; justify-content: space-between; gap: 20px; padding: 12px 4px 0; color: #a8bad2; font-size: .88rem; }
+    .bottom strong { color: #eaf5ff; }
+    .fullscreen { border: 1px solid #526781; border-radius: 6px; padding: 7px 11px; background: #101a2a; color: #eaf5ff; font: inherit; cursor: pointer; }
+    .fullscreen:hover { background: #1b2a42; }
+    .screen .fullscreen { position: absolute; z-index: 2; top: 12px; right: 14px; }
+    .music-widget { position: absolute; z-index: 6; right: 14px; bottom: 14px; display: flex; gap: 8px; align-items: center; padding: 7px; border: 1px solid #526781; border-radius: 8px; background: #091322ef; box-shadow: 0 4px 18px #0009; }
+    .music-widget button, .music-widget select { border: 1px solid #526781; border-radius: 5px; padding: 6px 9px; background: #14243a; color: #eaf5ff; font: inherit; cursor: pointer; }
+    .music-widget select { max-width: 180px; }
+    .screen:fullscreen { width: 100vw; height: 100vh; border: 0; border-radius: 0; }
+    .screen:fullscreen canvas { width: 100%; height: 100%; aspect-ratio: auto; }
+    .title-menu { position: absolute; z-index: 4; inset: 0; display: grid; place-items: center; padding: 22px; overflow: auto; background: #030711eF; }
+    .title-menu[hidden] { display: none; }
+    .menu-panel { width: min(540px, 100%); max-height: 100%; overflow: auto; padding: 24px; border: 1px solid #476080; border-radius: 14px; background: #0a1322; box-shadow: 0 18px 50px #000b; }
+    .menu-panel h2 { margin: 0 0 6px; color: #eaf5ff; font-size: 1.8rem; letter-spacing: .14em; text-transform: uppercase; }
+    .menu-panel p { color: #aabbd2; line-height: 1.45; }
+    .menu-actions { display: grid; gap: 10px; margin: 16px 0; }
+    .menu-actions button, .menu-panel button { border: 1px solid #526781; border-radius: 7px; padding: 10px 13px; background: #14243a; color: #eaf5ff; font: inherit; cursor: pointer; }
+    .menu-actions button:hover, .menu-panel button:hover { background: #203754; }
+    .menu-panel label { display: flex; align-items: center; gap: 9px; margin-top: 10px; color: #d4e1f2; }
+    .menu-panel select { margin-left: auto; min-width: 145px; border: 1px solid #435874; border-radius: 5px; padding: 5px 8px; background: #101a2a; color: #eaf5ff; font: inherit; }
+    .menu-panel textarea { display: block; width: 100%; min-height: 75px; margin: 8px 0; resize: vertical; border: 1px solid #435874; border-radius: 6px; background: #050b16; color: #dce9ff; font: 12px ui-monospace, monospace; }
+    .menu-panel .status { min-height: 1.4em; color: #9bdfff; }
+    .menu-panel .back { margin-top: 10px; }
+    kbd { padding: 2px 6px; border: 1px solid #526781; border-radius: 4px; background: #101a2a; color: #eaf5ff; font: inherit; font-size: .8em; }
+    @media (max-width: 650px) { main { padding: 10px; } header { align-items: start; flex-direction: column; } .hint { text-align: left; } .bottom { flex-direction: column; gap: 5px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><h1>Misare</h1><div class="hint">LOCAL ARENA · FIRST TO 5 WINS</div></header>
+    <div class="screen">
+      <canvas id="game" aria-label="Misare two-player split-screen space dogfight"></canvas><div class="divider"></div><button class="fullscreen" id="fullscreen">Fullscreen</button>
+      <div class="title-menu" id="titleMenu">
+        <section class="menu-panel" data-panel="main">
+          <h2>Misare</h2><p>Choose how you want to dogfight.</p>
+          <div class="menu-actions"><button id="localStart">Local split-screen versus</button><button id="hostStart">Online · host a game</button><button id="joinStart">Online · join a game</button></div>
+          <label>Ernesto · Blue controls <select id="ernestoControl"><option value="keyboard">Keyboard</option><option value="mouse">Mouse only</option></select></label>
+          <label>Robert · Gold controls <select id="robertControl"><option value="keyboard">Keyboard</option><option value="mouse">Mouse only</option></select></label>
+        </section>
+        <section class="menu-panel" data-panel="host" hidden>
+          <h2>Host online game</h2><p>Generate an invite and send it to the other player. After they reply with an answer, paste it below. Share codes through your own chat.</p>
+          <button id="createInvite">Create invite</button><textarea id="offerOut" readonly placeholder="Your invite code appears here"></textarea><button id="copyOffer">Copy invite</button>
+          <p>Paste their answer code:</p><textarea id="answerIn" placeholder="Answer code"></textarea><button id="submitAnswer">Connect</button><p class="status" id="hostStatus"></p><button class="back" data-back>Back</button>
+        </section>
+        <section class="menu-panel" data-panel="join" hidden>
+          <h2>Join online game</h2><p>Paste the host’s invite code and send them your answer code. Share codes through your own chat.</p>
+          <textarea id="offerIn" placeholder="Invite code"></textarea><button id="makeAnswer">Create answer</button><textarea id="answerOut" readonly placeholder="Your answer code appears here"></textarea><button id="copyAnswer">Copy answer</button><p class="status" id="joinStatus"></p><button class="back" data-back>Back</button>
+        </section>
+      </div>
+      <div class="music-widget" aria-label="Music controls"><button id="musicToggle" type="button" aria-pressed="true">Music: On</button><select id="musicTrack" aria-label="Choose music track"><option value="0">Cosmic Pursuit</option><option value="1">Void Signal</option><option value="2">Star Disco</option><option value="3">Nebula Drift</option><option value="4">Asteroid Boogie</option></select></div>
+    </div>
+    <div class="bottom">
+      <div id="ernestoHint"><strong>ERNESTO · BLUE</strong> W/A/S/D + Space when paired with a mouse</div>
+      <div id="robertHint"><strong>ROBERT · GOLD</strong> arrows + Right Ctrl when both pilots use keyboards</div>
+    </div>
+    <div class="hint" style="margin-top:8px;text-align:center">♥ REPAIR · ★ 5-SECOND SHIELD · LASER GUN 5-SECOND AUTO-FIRE</div>
+    <div class="hint" style="margin-top:4px;text-align:center">MOUSE-ONLY PILOT: MOVE CURSOR TO STEER · CLICK TO FIRE</div>
+  </main>
+  <script>
+  (() => {
+    const canvas = document.querySelector('#game'), ctx = canvas.getContext('2d');
+    const W = 1600, H = 700, keys = new Set();
+    const arena = document.querySelector('.screen');
+    const titleMenu = document.querySelector('#titleMenu'), divider = document.querySelector('.divider');
+    const fullscreenButton = document.querySelector('#fullscreen');
+    fullscreenButton.addEventListener('click', async () => {
+      if (!document.fullscreenElement) await arena.requestFullscreen(); else await document.exitFullscreen();
+    });
+    document.addEventListener('fullscreenchange', () => { fullscreenButton.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'; });
+    const stars = Array.from({ length: 180 }, (_, i) => ({ x: i * 7919 % W, y: i * 3571 % H, r: i % 5 * .25 + .45, a: .25 + i % 7 * .1 }));
+    const debris = [
+      { x: -560, y: -300, r: 34, seed: 1, hp: 3 }, { x: -480, y: 340, r: 25, seed: 2, hp: 3 }, { x: -110, y: -470, r: 29, seed: 3, hp: 3 },
+      { x: 80, y: 270, r: 38, seed: 4, hp: 3 }, { x: 410, y: -360, r: 23, seed: 5, hp: 3 }, { x: 520, y: 170, r: 33, seed: 6, hp: 3 },
+      { x: 790, y: -80, r: 27, seed: 7, hp: 3 }, { x: -850, y: 100, r: 30, seed: 8, hp: 3 }, { x: 260, y: 520, r: 22, seed: 9, hp: 3 }
+    ];
+    const players = [
+      { name: 'ERNESTO', color: '#51c9ff', x: 0, y: 0, angle: 0, score: 0, hp: 100, cooldown: 0, invuln: 0, shine: 0, laser: 0, beamPulse: 0, hitCooldown: 0, flash: 0 },
+      { name: 'ROBERT', color: '#ffca65', x: 0, y: 0, angle: Math.PI, score: 0, hp: 100, cooldown: 0, invuln: 0, shine: 0, laser: 0, beamPulse: 0, hitCooldown: 0, flash: 0 }
+    ];
+    let shots = [], effects = [], pickups = [], pickupTimer = 3, last = 0, ended = false, winner = '', shipContact = false;
+    let gameStarted = false, gameMode = 'local', isHost = false, localIdx = 0;
+    let controlModes = ['keyboard', 'keyboard'];
+    let peer = null, channel = null, sendClock = 0, snapshotClock = 0;
+    let musicEnabled = true, audioContext = null, musicTimer = null, musicStep = 0, selectedTrack = 0;
+    let remoteInput = { left: false, right: false, thrust: false, reverse: false, fire: false, angle: null };
+    const mouse = { x: -1, y: -1, down: false };
+    const menuPanels = [...document.querySelectorAll('[data-panel]')];
+    function showPanel(name) { menuPanels.forEach(panel => panel.hidden = panel.dataset.panel !== name); }
+    function readControlModes() { controlModes = [document.querySelector('#ernestoControl').value, document.querySelector('#robertControl').value]; }
+    function updateControlHints() {
+      if (gameMode === 'online') {
+        const control = controlModes[localIdx] === 'mouse' ? 'mouse steer + click fire' : 'W/A/S/D + Space fire';
+        document.querySelector('#ernestoHint').innerHTML = `<strong>ONLINE PILOT</strong> ${control}`;
+        document.querySelector('#robertHint').textContent = 'Move cursor over the arena to steer';
+        return;
+      }
+      const bothKeyboards = gameMode === 'local' && controlModes.every(mode => mode === 'keyboard');
+      const label = (mode, idx) => mode === 'mouse' ? 'mouse steer + click fire' : bothKeyboards && idx === 1 ? 'arrows + Right Ctrl fire' : 'W/A/S/D + Space fire';
+      document.querySelector('#ernestoHint').innerHTML = `<strong>ERNESTO · BLUE</strong> ${label(controlModes[0], 0)}`;
+      document.querySelector('#robertHint').innerHTML = `<strong>ROBERT · GOLD</strong> ${label(controlModes[1], 1)}`;
+    }
+    function keyboardMapFor(idx) {
+      if (gameMode === 'local' && controlModes[0] === 'keyboard' && controlModes[1] === 'keyboard' && idx === 1)
+        return { left: 'arrowleft', right: 'arrowright', thrust: 'arrowup', reverse: 'arrowdown', fire: 'controlright' };
+      return { left: 'a', right: 'd', thrust: 'w', reverse: 's', fire: ' ' };
+    }
+    function localMenu() {
+      readControlModes();
+      gameMode = 'local'; updateControlHints(); isHost = false; localIdx = 0; gameStarted = true; titleMenu.hidden = true; divider.hidden = false; resetMatch(); startMusic();
+    }
+    document.querySelector('#localStart').addEventListener('click', localMenu);
+    document.querySelector('#hostStart').addEventListener('click', () => { readControlModes(); isHost = true; localIdx = 0; startMusic(); showPanel('host'); });
+    document.querySelector('#joinStart').addEventListener('click', () => { readControlModes(); isHost = false; localIdx = 1; startMusic(); showPanel('join'); });
+    document.querySelectorAll('[data-back]').forEach(button => button.addEventListener('click', () => showPanel('main')));
+    const musicToggle = document.querySelector('#musicToggle');
+    musicToggle.addEventListener('click', () => {
+      musicEnabled = !musicEnabled; musicToggle.textContent = `Music: ${musicEnabled ? 'On' : 'Off'}`; musicToggle.setAttribute('aria-pressed', String(musicEnabled));
+      if (musicEnabled) startMusic(); else stopMusic();
+    });
+    document.querySelector('#musicTrack').addEventListener('change', e => { selectedTrack = Number(e.target.value) || 0; musicStep = 0; stopMusic(); if (musicEnabled) startMusic(); });
+    canvas.addEventListener('pointermove', e => {
+      const rect = canvas.getBoundingClientRect(); mouse.x = (e.clientX - rect.left) / rect.width * W; mouse.y = (e.clientY - rect.top) / rect.height * H;
+    });
+    canvas.addEventListener('pointerdown', e => { if (e.button === 0) { mouse.down = true; canvas.setPointerCapture?.(e.pointerId); } });
+    addEventListener('pointerup', () => mouse.down = false);
+    function keyName(e) { return e.code === 'ControlRight' ? 'controlright' : e.key.toLowerCase(); }
+    addEventListener('keydown', e => { const k = keyName(e); if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'controlright'].includes(k)) e.preventDefault(); keys.add(k); if (ended && k === 'r' && gameMode === 'local') resetMatch(); });
+    addEventListener('keyup', e => keys.delete(keyName(e)));
+    function wrap(v, span) { return ((v + span / 2) % span + span) % span - span / 2; }
+    function resetShip(p) {
+      p.x = p === players[0] ? -190 : 190; p.y = 0; p.angle = p === players[0] ? 0 : Math.PI;
+      p.vx = p.vy = 0; p.hp = 100; p.invuln = 1.5; p.shine = 0; p.laser = 0; p.beamPulse = 0; p.fireFlash = 0; p.reversing = false; p.hitCooldown = 0; p.flash = 0; p.dead = false; p.respawn = 0; p.cooldown = 0;
+    }
+    function resetMatch() {
+      players.forEach(p => { p.score = 0; resetShip(p); });
+      debris.forEach(d => { d.hp = 3; d.destroyed = false; d.flash = 0; });
+      shots = []; effects = []; pickups = []; pickupTimer = 3; ended = false; winner = ''; shipContact = false;
+    }
+    resetMatch();
+    const tracks = [
+      { melody: [72,76,79,84,79,76,74,77,81,86,81,77,76,79,83,88], bass: [48,55,52,43], tempo: 125, lead: 'square', backing: 'triangle', volume: .04 },
+      { melody: [60,63,67,70,67,63,58,62,65,70,65,62,56,60,63,68], bass: [36,39,34,41], tempo: 230, lead: 'triangle', backing: 'sine', volume: .027 },
+      { melody: [72,72,79,76,81,79,76,74,72,76,79,84,83,79,76,74], bass: [48,48,55,52], tempo: 112, lead: 'square', backing: 'square', volume: .038 },
+      { melody: [67,72,74,79,76,72,69,74,76,81,79,74,67,71,74,79], bass: [43,50,45,52], tempo: 205, lead: 'sine', backing: 'triangle', volume: .024 },
+      { melody: [69,72,76,79,76,72,67,71,74,79,74,71,69,74,77,81], bass: [45,52,48,55], tempo: 132, lead: 'square', backing: 'triangle', volume: .036 }
+    ];
+    function midi(note) { return 440 * Math.pow(2, (note - 69) / 12); }
+    function playTone(freq, duration, type, volume, startAt) {
+      if (!audioContext || !freq) return;
+      const osc = audioContext.createOscillator(), gain = audioContext.createGain();
+      osc.type = type; osc.frequency.setValueAtTime(freq, startAt);
+      gain.gain.setValueAtTime(.0001, startAt); gain.gain.linearRampToValueAtTime(volume, startAt + .008); gain.gain.exponentialRampToValueAtTime(.0001, startAt + duration);
+      osc.connect(gain); gain.connect(audioContext.destination); osc.start(startAt); osc.stop(startAt + duration + .02);
+    }
+    function musicTick() {
+      if (!musicEnabled || !audioContext) return;
+      const track = tracks[selectedTrack], step = musicStep % track.melody.length, now = audioContext.currentTime + .015;
+      const bass = track.bass[Math.floor(step / 4) % track.bass.length];
+      playTone(midi(track.melody[step]), track.tempo / 1000 * .78, track.lead, track.volume, now);
+      if (selectedTrack === 2 || step % 2 === 0) playTone(midi(bass), track.tempo / 1000 * .92, track.backing, selectedTrack === 2 ? .034 : .025, now);
+      if (step % 4 === 0 && selectedTrack !== 1 && selectedTrack !== 3) playTone(midi(bass - 12), .075, 'square', .022, now);
+      musicStep++; musicTimer = setTimeout(musicTick, track.tempo);
+    }
+    function startMusic() {
+      if (!musicEnabled) return;
+      const Audio = window.AudioContext || window.webkitAudioContext;
+      if (!Audio) return;
+      audioContext ||= new Audio(); audioContext.resume();
+      if (musicTimer === null) musicTick();
+    }
+    function stopMusic() { if (musicTimer !== null) clearTimeout(musicTimer); musicTimer = null; }
+    function waitForIce(pc) {
+      if (pc.iceGatheringState === 'complete') return Promise.resolve();
+      return new Promise(resolve => {
+        const finish = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', finish); resolve(); } };
+        pc.addEventListener('icegatheringstatechange', finish); finish();
+      });
+    }
+    const iceConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    function bindDataChannel(dataChannel, host) {
+      channel = dataChannel; isHost = host; localIdx = host ? 0 : 1;
+      channel.onopen = () => {
+        gameMode = 'online'; gameStarted = true; titleMenu.hidden = true; divider.hidden = true; resetMatch();
+        updateControlHints();
+        const status = document.querySelector(host ? '#hostStatus' : '#joinStatus'); if (status) status.textContent = 'Connected. Loading arena…';
+      };
+      channel.onclose = () => { const s = document.querySelector(host ? '#hostStatus' : '#joinStatus'); if (s) s.textContent = 'Connection closed.'; };
+      channel.onmessage = event => {
+        let message; try { message = JSON.parse(event.data); } catch { return; }
+        if (host && message.type === 'input') remoteInput = message.input;
+        if (!host && message.type === 'state') {
+          message.players.forEach((state, i) => Object.assign(players[i], state));
+          shots = message.shots; effects = message.effects; pickups = message.pickups;
+          message.rocks.forEach((rock, i) => Object.assign(debris[i], rock));
+          ended = message.ended; winner = message.winner;
+        }
+      };
+      if (channel.readyState === 'open') channel.onopen();
+    }
+    const offerOut = document.querySelector('#offerOut'), answerOut = document.querySelector('#answerOut');
+    document.querySelector('#createInvite').addEventListener('click', async () => {
+      const status = document.querySelector('#hostStatus'); status.textContent = 'Preparing invite…';
+      try {
+        peer = new RTCPeerConnection(iceConfig); peer.onconnectionstatechange = () => { if (peer.connectionState === 'failed') status.textContent = 'Connection failed. Try new codes or another network.'; };
+        bindDataChannel(peer.createDataChannel('misare'), true);
+        await peer.setLocalDescription(await peer.createOffer()); await waitForIce(peer);
+        offerOut.value = JSON.stringify(peer.localDescription); status.textContent = 'Send this invite code to the other player.';
+      } catch (error) { status.textContent = `Could not create invite: ${error.message}`; }
+    });
+    document.querySelector('#copyOffer').addEventListener('click', async () => { try { await navigator.clipboard.writeText(offerOut.value); document.querySelector('#hostStatus').textContent = 'Invite copied.'; } catch { offerOut.focus(); offerOut.select(); } });
+    document.querySelector('#submitAnswer').addEventListener('click', async () => {
+      const status = document.querySelector('#hostStatus');
+      try { await peer.setRemoteDescription(JSON.parse(document.querySelector('#answerIn').value)); status.textContent = 'Connecting…'; }
+      catch (error) { status.textContent = `Could not read answer: ${error.message}`; }
+    });
+    document.querySelector('#makeAnswer').addEventListener('click', async () => {
+      const status = document.querySelector('#joinStatus'); status.textContent = 'Preparing answer…';
+      try {
+        peer = new RTCPeerConnection(iceConfig); peer.ondatachannel = event => bindDataChannel(event.channel, false);
+        await peer.setRemoteDescription(JSON.parse(document.querySelector('#offerIn').value));
+        await peer.setLocalDescription(await peer.createAnswer()); await waitForIce(peer);
+        answerOut.value = JSON.stringify(peer.localDescription); status.textContent = 'Send this answer code back to the host.';
+      } catch (error) { status.textContent = `Could not create answer: ${error.message}`; }
+    });
+    document.querySelector('#copyAnswer').addEventListener('click', async () => { try { await navigator.clipboard.writeText(answerOut.value); document.querySelector('#joinStatus').textContent = 'Answer copied.'; } catch { answerOut.focus(); answerOut.select(); } });
+    function inputFor(idx) {
+      if (gameMode === 'online' && isHost && idx !== localIdx) return remoteInput;
+      const c = keyboardMapFor(idx), viewX = gameMode === 'online' ? 0 : idx * W / 2, viewWidth = gameMode === 'online' ? W : W / 2;
+      const input = { left: keys.has(c.left), right: keys.has(c.right), thrust: keys.has(c.thrust), reverse: keys.has(c.reverse), fire: keys.has(c.fire), angle: null };
+      const overView = mouse.x >= viewX && mouse.x < viewX + viewWidth && mouse.y >= 0 && mouse.y <= H;
+      if (controlModes[idx] === 'mouse' && overView) {
+        const dx = mouse.x - (viewX + viewWidth / 2), dy = mouse.y - H / 2;
+        if (Math.hypot(dx, dy) > 12) { input.angle = Math.atan2(dy, dx); input.thrust = true; }
+        input.left = false; input.right = false; input.reverse = false; input.fire = mouse.down;
+      } else if (controlModes[idx] === 'mouse') { input.left = false; input.right = false; input.thrust = false; input.reverse = false; input.fire = false; }
+      return input;
+    }
+    function sendHostState(dt) {
+      if (gameMode !== 'online' || !isHost || channel?.readyState !== 'open') return;
+      snapshotClock += dt; if (snapshotClock < .05) return; snapshotClock = 0;
+      const state = {
+        type: 'state', players: players.map(({ name, color, x, y, angle, score, hp, invuln, shine, laser, flash, dead, respawn, thrusting, reversing }) => ({ name, color, x, y, angle, score, hp, invuln, shine, laser, flash, dead, respawn, thrusting, reversing })),
+        shots, effects, pickups, rocks: debris.map(({ hp, destroyed, flash }) => ({ hp, destroyed, flash })), ended, winner
+      };
+      try { channel.send(JSON.stringify(state)); } catch {}
+    }
+    function sendGuestInput() {
+      if (gameMode !== 'online' || isHost || channel?.readyState !== 'open') return;
+      const now = performance.now(); if (now - sendClock < 40) return; sendClock = now;
+      try { channel.send(JSON.stringify({ type: 'input', input: inputFor(localIdx) })); } catch {}
+    }
+    function resize() {
+      const dpr = Math.min(devicePixelRatio || 1, 2), rect = canvas.getBoundingClientRect();
+      canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr);
+      ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+    }
+    new ResizeObserver(resize).observe(canvas);
+    function sparkBurst(x, y, color, amount = 8, life = .34) {
+      for (let i = 0; i < amount; i++) { const a = Math.random() * Math.PI * 2, speed = 45 + Math.random() * 180; effects.push({ type: 'spark', x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, color, life, max: life, size: 2 + Math.random() * 3 }); }
+      effects.push({ type: 'ring', x, y, color, life: .24, max: .24 });
+    }
+    function finishPoint(p, killer) {
+      const scorer = killer === null ? players[1 - players.indexOf(p)] : players[killer];
+      scorer.score++;
+      effects.push({ type: 'boom', x: p.x, y: p.y, color: p.color, life: .8, max: .8 });
+      for (let i = 0; i < 24; i++) { const a = Math.random() * Math.PI * 2, speed = 55 + Math.random() * 260; effects.push({ type: 'spark', x: p.x, y: p.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, color: i % 3 ? p.color : '#fff0ba', life: .75, max: .75, size: 2 + Math.random() * 5 }); }
+      p.dead = true; p.respawn = .82; p.hp = 0;
+      if (scorer.score >= 5) { ended = true; winner = scorer.name; }
+    }
+    function damage(p, amount, killer = null, x = p.x, y = p.y) {
+      if (p.dead || p.invuln > 0 || p.hitCooldown > 0) return false;
+      p.hp = Math.max(0, p.hp - amount); p.flash = .2; p.hitCooldown = .42;
+      sparkBurst(x, y, '#fff1b0', 9, .36);
+      if (p.hp === 0) finishPoint(p, killer);
+      return true;
+    }
+    function fire(p, owner) {
+      // Six square-ended prongs on the two L-shaped side arms act as the muzzles.
+      for (const side of [-1, 1]) for (const offset of [-7, 0, 7]) {
+        const lx = 49, ly = side * 32 + offset;
+        const x = p.x + Math.cos(p.angle) * lx - Math.sin(p.angle) * ly;
+        const y = p.y + Math.sin(p.angle) * lx + Math.cos(p.angle) * ly;
+        shots.push({ x, y, vx: p.vx + Math.cos(p.angle) * 650, vy: p.vy + Math.sin(p.angle) * 650, owner, life: 1.15 });
+      }
+      p.cooldown = .28; p.fireFlash = .1;
+    }
+    function update(dt) {
+      if (!gameStarted) return;
+      effects = effects.filter(e => { e.life -= dt; if (e.type === 'spark') { e.x = wrap(e.x + e.vx * dt, 2200); e.y = wrap(e.y + e.vy * dt, 1500); e.vx *= .96; e.vy *= .96; } return e.life > 0; });
+      if (gameMode === 'online' && !isHost) { sendGuestInput(); return; }
+      if (ended) { sendHostState(dt); return; }
+      debris.forEach(d => { d.flash = Math.max(0, (d.flash || 0) - dt); });
+      pickupTimer -= dt;
+      if (pickupTimer <= 0 && pickups.length < 4) {
+        let spot;
+        for (let tries = 0; tries < 20; tries++) {
+          spot = { x: Math.random() * 1900 - 950, y: Math.random() * 1250 - 625 };
+          if (debris.every(d => Math.hypot(wrap(spot.x - d.x, 2200), wrap(spot.y - d.y, 1500)) > d.r + 70)) break;
+        }
+        const roll = Math.random();
+        pickups.push({ ...spot, type: roll < .55 ? 'heart' : roll < .78 ? 'star' : 'laser', phase: Math.random() * Math.PI * 2 });
+        pickupTimer = 5 + Math.random() * 4;
+      }
+      players.forEach((p, idx) => {
+        p.cooldown = Math.max(0, p.cooldown - dt); p.invuln = Math.max(0, p.invuln - dt); p.shine = Math.max(0, p.shine - dt); p.laser = Math.max(0, p.laser - dt); p.beamPulse = Math.max(0, p.beamPulse - dt); p.fireFlash = Math.max(0, p.fireFlash - dt); p.hitCooldown = Math.max(0, p.hitCooldown - dt); p.flash = Math.max(0, p.flash - dt);
+        if (p.dead) { p.respawn -= dt; if (p.respawn <= 0 && !ended) resetShip(p); return; }
+        const input = inputFor(idx); p.reversing = input.reverse; p.thrusting = input.thrust;
+        if (input.angle !== null) p.angle = input.angle;
+        else { if (input.left) p.angle -= 3.1 * dt; if (input.right) p.angle += 3.1 * dt; }
+        if (input.thrust) { p.vx = (p.vx || 0) + Math.cos(p.angle) * 390 * dt; p.vy = (p.vy || 0) + Math.sin(p.angle) * 390 * dt; }
+        if (input.reverse) { p.vx = (p.vx || 0) - Math.cos(p.angle) * 280 * dt; p.vy = (p.vy || 0) - Math.sin(p.angle) * 280 * dt; }
+        p.vx = (p.vx || 0) * Math.pow(.985, dt * 60); p.vy = (p.vy || 0) * Math.pow(.985, dt * 60);
+        const speed = Math.hypot(p.vx, p.vy); if (speed > 330) { p.vx *= 330 / speed; p.vy *= 330 / speed; }
+        p.x = wrap(p.x + p.vx * dt, 2200); p.y = wrap(p.y + p.vy * dt, 1500);
+        debris.forEach(d => {
+          if (d.destroyed) return;
+          let dx = wrap(p.x - d.x, 2200), dy = wrap(p.y - d.y, 1500), dist = Math.hypot(dx, dy), reach = d.r + 40;
+          if (dist < reach) {
+            const nx = dist ? dx / dist : 1, ny = dist ? dy / dist : 0;
+            p.x = wrap(d.x + nx * (reach + 1), 2200); p.y = wrap(d.y + ny * (reach + 1), 1500);
+            const impact = Math.max(0, p.vx * nx + p.vy * ny);
+            p.vx -= 1.65 * impact * nx; p.vy -= 1.65 * impact * ny;
+            if (damage(p, 28, null, d.x + nx * d.r, d.y + ny * d.r)) { p.hitCooldown = .7; }
+          }
+        });
+        if (input.fire && p.cooldown === 0) fire(p, idx);
+      });
+      // Ships pass through one another; a crossing only applies one impact per contact.
+      const [a, b] = players;
+      if (!a.dead && !b.dead) {
+        const dx = wrap(b.x - a.x, 2200), dy = wrap(b.y - a.y, 1500), touching = Math.hypot(dx, dy) < 94;
+        if (touching && !shipContact) {
+          const dist = Math.hypot(dx, dy), nx = dist ? dx / dist : 1, ny = dist ? dy / dist : 0;
+          sparkBurst(a.x + dx * .5, a.y + dy * .5, '#fff1b0', 14, .4);
+          damage(a, 22, 1, a.x + nx * 36, a.y + ny * 36); damage(b, 22, 0, b.x - nx * 36, b.y - ny * 36);
+        }
+        shipContact = touching;
+      } else shipContact = false;
+      pickups = pickups.filter(item => {
+        for (const p of players) if (!p.dead && Math.hypot(wrap(item.x - p.x, 2200), wrap(item.y - p.y, 1500)) < 42) {
+          if (item.type === 'heart') { p.hp = Math.min(100, p.hp + 35); p.flash = .2; sparkBurst(item.x, item.y, '#ff7bba', 12, .45); }
+          else if (item.type === 'star') { p.invuln = 5; p.shine = 5; sparkBurst(item.x, item.y, '#fff37a', 16, .6); }
+          else { p.laser = 5; p.beamPulse = 0; sparkBurst(item.x, item.y, '#8dfaff', 18, .6); }
+          return false;
+        }
+        return true;
+      });
+      shots = shots.filter(s => {
+        s.x = wrap(s.x + s.vx * dt, 2200); s.y = wrap(s.y + s.vy * dt, 1500); s.life -= dt;
+        if (s.life <= 0) return false;
+        const rock = debris.find(d => !d.destroyed && Math.hypot(wrap(s.x - d.x, 2200), wrap(s.y - d.y, 1500)) < d.r + 5);
+        if (rock) {
+          rock.hp--; rock.flash = .16; sparkBurst(s.x, s.y, '#c8d0d6', 5, .25);
+          if (rock.hp <= 0) {
+            rock.destroyed = true; sparkBurst(rock.x, rock.y, '#c8d0d6', 18, .55);
+            if (Math.random() < .52) {
+              const roll = Math.random(); pickups.push({ x: rock.x, y: rock.y, type: roll < .42 ? 'heart' : roll < .72 ? 'star' : 'laser', phase: Math.random() * Math.PI * 2 });
+            }
+          }
+          return false;
+        }
+        const target = players[1 - s.owner];
+        if (!target.dead && target.invuln <= 0 && Math.hypot(wrap(s.x - target.x, 2200), wrap(s.y - target.y, 1500)) < 42) {
+          damage(target, 24, s.owner, s.x, s.y); return false;
+        }
+        return true;
+      });
+      players.forEach((p, owner) => {
+        if (p.dead || p.laser <= 0 || p.beamPulse > 0) return;
+        const target = players[1 - owner];
+        if (target.dead || target.invuln > 0 || target.hitCooldown > 0) return;
+        const dx = wrap(target.x - p.x, 2200), dy = wrap(target.y - p.y, 1500);
+        const forward = dx * Math.cos(p.angle) + dy * Math.sin(p.angle);
+        const lateral = -dx * Math.sin(p.angle) + dy * Math.cos(p.angle);
+        if (forward > 0 && forward < 900 && Math.abs(lateral) < 34) {
+          damage(target, 18, owner, target.x, target.y); p.beamPulse = .45;
+        }
+      });
+      sendHostState(dt);
+    }
+    function drawDebris() {
+      debris.forEach((d, i) => {
+        if (d.destroyed) return;
+        const glow = ctx.createRadialGradient(d.x - d.r * .3, d.y - d.r * .38, 2, d.x, d.y, d.r * 1.35);
+        glow.addColorStop(0, d.flash > 0 ? '#fff0bb' : i % 2 ? '#a6a39a' : '#aaa69d'); glow.addColorStop(.48, d.flash > 0 ? '#a9906b' : '#615f5a'); glow.addColorStop(1, '#262b32');
+        ctx.fillStyle = glow; ctx.strokeStyle = d.flash > 0 ? '#fff0bb' : '#96958f'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let n = 0; n < 12; n++) {
+          const angle = n / 12 * Math.PI * 2, wobble = .82 + .12 * Math.sin(n * 4.7 + d.seed) + .06 * Math.cos(n * 2.3 + d.seed * 2);
+          const px = d.x + Math.cos(angle) * d.r * wobble, py = d.y + Math.sin(angle) * d.r * wobble;
+          if (!n) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        for (let c = 0; c < 3; c++) {
+          const angle = d.seed * 1.71 + c * 2.09, cx = d.x + Math.cos(angle) * d.r * .37, cy = d.y + Math.sin(angle) * d.r * .37, cr = d.r * (.1 + c * .025);
+          ctx.fillStyle = '#30343a'; ctx.beginPath(); ctx.ellipse(cx, cy, cr * 1.3, cr * .75, angle, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#aaa69c'; ctx.globalAlpha = .45; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(cx - cr * .15, cy - cr * .1, cr, Math.PI, Math.PI * 1.75); ctx.stroke(); ctx.globalAlpha = 1;
+        }
+      });
+    }
+    function drawPickups() {
+      pickups.forEach(item => {
+        const bob = Math.sin(performance.now() / 260 + item.phase) * 4, x = item.x, y = item.y + bob;
+        ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 18; ctx.shadowColor = item.type === 'heart' ? '#ff65a9' : item.type === 'star' ? '#fff176' : '#8dfaff';
+        if (item.type === 'laser') {
+          ctx.translate(x, y); ctx.fillStyle = '#75f3ff'; ctx.strokeStyle = '#efffff'; ctx.lineWidth = 2;
+          ctx.fillRect(-13, -7, 22, 12); ctx.strokeRect(-13, -7, 22, 12); ctx.fillRect(7, -4, 13, 6); ctx.strokeRect(7, -4, 13, 6); ctx.fillRect(-8, 5, 7, 11); ctx.strokeRect(-8, 5, 7, 11);
+          ctx.fillStyle = '#d4ffff'; ctx.fillRect(-9, -4, 11, 3);
+        } else {
+          ctx.font = '27px Segoe UI Symbol, Segoe UI, sans-serif'; ctx.fillStyle = item.type === 'heart' ? '#ff65a9' : '#fff176'; ctx.fillText(item.type === 'heart' ? '♥' : '★', x, y);
+        }
+        ctx.restore();
+      });
+    }
+    function drawLasers() {
+      players.forEach(p => {
+        if (p.dead || p.laser <= 0) return;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle); ctx.lineCap = 'square';
+        ctx.shadowBlur = 20; ctx.shadowColor = '#65f5ff'; ctx.strokeStyle = '#58efff'; ctx.lineWidth = 8;
+        for (const side of [-1, 1]) for (const offset of [-7, 0, 7]) { const y = side * 32 + offset; ctx.beginPath(); ctx.moveTo(50, y); ctx.lineTo(900, y); ctx.stroke(); }
+        ctx.shadowBlur = 0; ctx.strokeStyle = '#efffff'; ctx.lineWidth = 2;
+        for (const side of [-1, 1]) for (const offset of [-7, 0, 7]) { const y = side * 32 + offset; ctx.beginPath(); ctx.moveTo(50, y); ctx.lineTo(900, y); ctx.stroke(); }
+        ctx.restore();
+      });
+    }
+    function drawEffects() {
+      effects.forEach(e => {
+        const t = e.life / e.max; ctx.globalAlpha = Math.max(0, t);
+        if (e.type === 'spark') { ctx.fillStyle = e.color; ctx.fillRect(e.x - e.size / 2, e.y - e.size / 2, e.size, e.size); }
+        else if (e.type === 'ring' || e.type === 'boom') {
+          ctx.strokeStyle = e.color; ctx.lineWidth = e.type === 'boom' ? 5 * t : 3 * t; ctx.beginPath();
+          ctx.arc(e.x, e.y, e.type === 'boom' ? 18 + (1 - t) * 92 : 8 + (1 - t) * 35, 0, Math.PI * 2); ctx.stroke();
+          if (e.type === 'boom') { ctx.fillStyle = '#ffe9a6'; ctx.globalAlpha = t * .65; ctx.beginPath(); ctx.arc(e.x, e.y, 10 + (1 - t) * 24, 0, Math.PI * 2); ctx.fill(); }
+        }
+        ctx.globalAlpha = 1;
+      });
+    }
+    function drawShip(p) {
+      if (p.dead) return;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+      ctx.globalAlpha = p.invuln > 0 && Math.floor(p.invuln * 12) % 2 ? .35 : 1;
+      const color = p.flash > 0 ? '#fff3ba' : p.color;
+      // Keep the side arms compact; each fork ends in three flat, forward-facing lines.
+      ctx.strokeStyle = p.fireFlash > 0 ? '#fff5a0' : color; ctx.fillStyle = color; ctx.lineWidth = 4; ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
+      for (const side of [-1, 1]) {
+        ctx.beginPath(); ctx.moveTo(-8, side * 14); ctx.lineTo(-8, side * 32); ctx.lineTo(20, side * 32); ctx.stroke();
+        for (const offset of [-7, 0, 7]) {
+          ctx.beginPath(); ctx.moveTo(18, side * 32); ctx.lineTo(23, side * 32 + offset); ctx.lineTo(49, side * 32 + offset); ctx.stroke();
+        }
+      }
+      if (p.shine > 0) { ctx.shadowBlur = 28; ctx.shadowColor = '#fff27a'; ctx.strokeStyle = '#fff27a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(4, 0, 58 + Math.sin(performance.now() / 90) * 3, 0, Math.PI * 2); ctx.stroke(); ctx.shadowBlur = 0; }
+      // The aft fuselage wraps around an inset nozzle, making the jet part of the hull.
+      ctx.strokeStyle = '#e8f6ff'; ctx.lineWidth = 3; ctx.fillStyle = p.flash > 0 ? '#fff3ba' : p.color;
+      ctx.beginPath(); ctx.moveTo(50, 0); ctx.lineTo(30, -15); ctx.lineTo(-18, -22); ctx.lineTo(-39, -35); ctx.lineTo(-32, -14); ctx.lineTo(-46, -8); ctx.lineTo(-46, 8); ctx.lineTo(-32, 14); ctx.lineTo(-39, 35); ctx.lineTo(-18, 22); ctx.lineTo(30, 15); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#d9eaff'; ctx.globalAlpha = .42; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(-20, -20); ctx.lineTo(-34, -30); ctx.moveTo(-20, 20); ctx.lineTo(-34, 30); ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.fillStyle = '#172b40'; ctx.strokeStyle = '#c6def5'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(-40, 0, 5, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#86eaff'; ctx.beginPath(); ctx.ellipse(-40, 0, 2.5, 4, 0, 0, Math.PI * 2); ctx.fill();
+      if (p.thrusting) { ctx.fillStyle = '#ff9b60'; ctx.beginPath(); ctx.moveTo(-44, -5); ctx.lineTo(-60 - Math.random() * 8, 0); ctx.lineTo(-44, 5); ctx.fill(); ctx.fillStyle = '#fff2b5'; ctx.fillRect(-47, -2, 4, 4); }
+      if (p.reversing) { ctx.fillStyle = '#ff9b60'; ctx.beginPath(); ctx.moveTo(46, -5); ctx.lineTo(58 + Math.random() * 7, 0); ctx.lineTo(46, 5); ctx.fill(); }
+      ctx.fillStyle = '#d9f7ff'; ctx.beginPath(); ctx.ellipse(3, 0, 14, 8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    function drawView(p, x, width) {
+      ctx.save(); ctx.beginPath(); ctx.rect(x, 0, width, H); ctx.clip(); ctx.fillStyle = '#050b19'; ctx.fillRect(x, 0, width, H);
+      ctx.translate(x + width / 2 - p.x, H / 2 - p.y);
+      stars.forEach(s => { ctx.globalAlpha = s.a; ctx.fillStyle = '#d8e8ff'; ctx.beginPath(); ctx.arc(wrap(s.x + p.x, 2200) - p.x, wrap(s.y + p.y, 1500) - p.y, s.r, 0, Math.PI * 2); ctx.fill(); });
+      ctx.globalAlpha = 1; drawDebris(); drawPickups(); drawLasers();
+      shots.forEach(s => { ctx.fillStyle = players[s.owner].color; ctx.shadowBlur = 12; ctx.shadowColor = players[s.owner].color; ctx.fillRect(s.x - 5, s.y - 2, 10, 4); }); ctx.shadowBlur = 0;
+      drawEffects(); players.forEach(drawShip);
+      ctx.restore();
+      ctx.fillStyle = p.color; ctx.font = '700 20px Segoe UI, sans-serif'; ctx.textAlign = 'left'; ctx.fillText(p.name, x + 22, 33);
+      ctx.fillStyle = '#dce9ff'; ctx.font = '700 27px Segoe UI, sans-serif'; ctx.fillText(String(p.score), x + 22, 68);
+      ctx.fillStyle = '#71839f'; ctx.font = '11px Segoe UI, sans-serif'; ctx.fillText('SCORE', x + 22, 84);
+      const bx = x + 22, by = 102, bw = Math.min(width - 44, 290), bh = 13;
+      ctx.fillStyle = '#18243a'; ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = p.hp > 55 ? p.color : p.hp > 25 ? '#ffc45e' : '#ff6572'; ctx.fillRect(bx, by, bw * p.hp / 100, bh);
+      ctx.strokeStyle = '#adc4e0'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
+      ctx.fillStyle = '#dce9ff'; ctx.font = '11px Segoe UI, sans-serif'; ctx.fillText(`HULL ${p.hp}%`, bx, by + 29);
+    }
+    function frame(t) {
+      const dt = Math.min((t - last) / 1000 || 0, .04); last = t; update(dt);
+      if (gameMode === 'online' && gameStarted) drawView(players[localIdx], 0, W);
+      else { const half = W / 2; drawView(players[0], 0, half); drawView(players[1], half, half); }
+      if (ended) { ctx.fillStyle = '#020612bb'; ctx.fillRect(0, 0, W, H); ctx.textAlign = 'center'; ctx.fillStyle = players.find(p => p.name === winner).color; ctx.font = '800 54px Segoe UI, sans-serif'; ctx.fillText(`${winner} WINS`, W / 2, H / 2 - 8); ctx.fillStyle = '#eaf5ff'; ctx.font = '20px Segoe UI, sans-serif'; ctx.fillText(gameMode === 'local' ? 'Press R for a rematch' : 'Game over', W / 2, H / 2 + 34); }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+  </script>
+</body>
+</html>
+
